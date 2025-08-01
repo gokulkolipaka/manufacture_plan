@@ -74,6 +74,8 @@
             const [currentMonth, setCurrentMonth] = React.useState(7); // Default to July
             const [currentYear, setCurrentYear] = React.useState(2025); // Default to 2025
             const [currentTime, setCurrentTime] = React.useState(new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
+            const [editingProcess, setEditingProcess] = React.useState(null);
+            const [editValue, setEditValue] = React.useState('');
 
             // Update real-time clock every second
             React.useEffect(() => {
@@ -171,8 +173,56 @@
                 localStorage.setItem(`manufacturingData_${currentYear}_${currentMonth}`, JSON.stringify(newData));
             };
 
+            // Handling equipment name edit (Super Admin only)
+            const handleEditProcess = (rowIndex) => {
+                setEditingProcess(rowIndex);
+                setEditValue(data[rowIndex].process);
+            };
+
+            const handleSaveProcess = (rowIndex) => {
+                if (editValue.trim() === '') {
+                    alert('Equipment name cannot be empty.');
+                    return;
+                }
+                if (data.some((row, index) => index !== rowIndex && row.process === editValue)) {
+                    alert('Equipment name must be unique.');
+                    return;
+                }
+                const newData = [...data];
+                newData[rowIndex].process = editValue;
+                setData(newData);
+                localStorage.setItem(`manufacturingData_${currentYear}_${currentMonth}`, JSON.stringify(newData));
+                setEditingProcess(null);
+                setEditValue('');
+            };
+
+            // Handling row movement (Super Admin and Admin)
+            const handleMoveUp = (rowIndex) => {
+                if (rowIndex === 0) return;
+                const newData = [...data];
+                [newData[rowIndex - 1], newData[rowIndex]] = [newData[rowIndex], newData[rowIndex - 1]];
+                setData(newData);
+                localStorage.setItem(`manufacturingData_${currentYear}_${currentMonth}`, JSON.stringify(newData));
+            };
+
+            const handleMoveDown = (rowIndex) => {
+                if (rowIndex === data.length - 1) return;
+                const newData = [...data];
+                [newData[rowIndex], newData[rowIndex + 1]] = [newData[rowIndex + 1], newData[rowIndex]];
+                setData(newData);
+                localStorage.setItem(`manufacturingData_${currentYear}_${currentMonth}`, JSON.stringify(newData));
+            };
+
             // Adding new equipment (Super Admin and Admin)
             const handleAddEquipment = (equipmentName) => {
+                if (equipmentName.trim() === '') {
+                    alert('Equipment name cannot be empty.');
+                    return;
+                }
+                if (data.some(row => row.process === equipmentName)) {
+                    alert('Equipment name must be unique.');
+                    return;
+                }
                 const daysInMonth = new Date(currentYear, currentMonth, 0).getDate();
                 const startSerial = Math.floor((new Date(currentYear, currentMonth - 1, 1) - new Date(1970, 0, 1)) / (1000 * 60 * 60 * 24)) + 25569;
                 const newEquipment = { process: equipmentName, total: 0 };
@@ -339,7 +389,7 @@
                                             <th className="p-2">Action</th>
                                         </tr>
                                     </thead>
-                                    <tbody>
+                    <tbody>
                                         {users.map(u => (
                                             <tr key={u.username} className="border-b">
                                                 <td className="p-2">{u.username}</td>
@@ -450,20 +500,78 @@
 
                         {/* Data Table */}
                         <div className="overflow-x-auto">
-                            <table className="w-full bg-white rounded-lg shadow-md">
+                            <table className="w-full bg-white rounded-lg shadow-md table-fixed">
                                 <thead>
                                     <tr className="bg-blue-600 text-white">
-                                        <th className="p-2">Process</th>
+                                        <th className="p-2 w-48">Process</th>
                                         {Object.keys(data[0]).filter(key => key !== "process" && key !== "total").map(date => (
-                                            <th key={date} className="p-2">{formatDate(parseInt(date))}</th>
+                                            <th key={date} className="p-2 w-24">{formatDate(parseInt(date))}</th>
                                         ))}
-                                        <th className="p-2">Total</th>
+                                        <th className="p-2 w-24">Total</th>
                                     </tr>
                                 </thead>
                                 <tbody>
                                     {data.map((row, rowIndex) => (
                                         <tr key={row.process} className="border-b">
-                                            <td className="p-2">{row.process}</td>
+                                            <td className="p-2 flex items-center space-x-2">
+                                                {user.role === "Super Admin" && (
+                                                    <>
+                                                        {editingProcess === rowIndex ? (
+                                                            <div className="flex items-center space-x-2">
+                                                                <input
+                                                                    type="text"
+                                                                    value={editValue}
+                                                                    onChange={(e) => setEditValue(e.target.value)}
+                                                                    className="p-1 border rounded-md flex-grow"
+                                                                />
+                                                                <button
+                                                                    className="px-2 py-1 bg-green-600 text-white rounded-md hover:bg-green-700"
+                                                                    onClick={() => handleSaveProcess(rowIndex)}
+                                                                >
+                                                                    Save
+                                                                </button>
+                                                                <button
+                                                                    className="px-2 py-1 bg-gray-300 rounded-md"
+                                                                    onClick={() => setEditingProcess(null)}
+                                                                >
+                                                                    Cancel
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <div className="flex items-center space-x-2">
+                                                                <span>{row.process}</span>
+                                                                <button
+                                                                    className="px-2 py-1 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+                                                                    onClick={() => handleEditProcess(rowIndex)}
+                                                                >
+                                                                    Edit
+                                                                </button>
+                                                            </div>
+                                                        )}
+                                                    </>
+                                                )}
+                                                {(user.role === "Super Admin" || user.role === "Admin") && editingProcess !== rowIndex && (
+                                                    <div className="flex space-x-1">
+                                                        <button
+                                                            className="px-2 py-1 bg-gray-300 rounded-md disabled:opacity-50"
+                                                            onClick={() => handleMoveUp(rowIndex)}
+                                                            disabled={rowIndex === 0}
+                                                        >
+                                                            Up
+                                                        </button>
+                                                        <button
+                                                            className="px-2 py-1 bg-gray-300 rounded-md disabled:opacity-50"
+                                                            onClick={() => handleMoveDown(rowIndex)}
+                                                            disabled={rowIndex === data.length - 1}
+                                                        >
+                                                            Down
+                                                        </button>
+                                                    </div>
+                                                )}
+                                                {user.role !== "Super Admin" && editingProcess !== rowIndex && (
+                                                    <span>{row.process}</span>
+                                                )}
+                                            </td>
                                             {Object.keys(row).filter(key => key !== "process" && key !== "total").map(column => (
                                                 <td key={column} className="p-2">
                                                     {(user.role === "Super Admin" || user.role === "Admin") ? (
